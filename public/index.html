@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>huddle. — live rooms</title>
+<meta name="description" content="Join live rooms to talk about the moment. When the conversation goes quiet, the room is gone.">
+<meta name="theme-color" content="#7a4fc7">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%237a4fc7'/%3E%3Cpath d='M8 13v6M12 9v14M16 6v20M20 10v12M24 13v6' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="banner" class="banner" hidden>Reconnecting…</div>
+
+<div id="home">
+  <header class="top">
+    <div class="top-in">
+      <a class="logo" href="#/" aria-label="huddle home"><span class="logo-mark" id="logoMark"></span>huddle.</a>
+      <button id="createBtn" class="btn primary"><span id="plusIcon"></span>Create a room</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Find your<br>conversation.</h1>
+      <p class="sub">Big moments are better with people who get it.</p>
+      <div class="promo">
+        <div class="promo-k"><span id="signalIcon"></span>Here for a moment. Not forever.</div>
+        <h2>Keep the conversation alive.</h2>
+        <p>3 minutes to start. +30 seconds per message. When it goes quiet, it’s gone.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h3>What are you into?</h3>
+        <button id="allTopics" class="link">All topics <span id="chevIcon"></span></button>
+      </div>
+      <div id="topics" class="topics"></div>
+    </section>
+
+    <section class="list-sec">
+      <div class="sec-head">
+        <h3><span id="listTitle">Live rooms</span> <span class="count" id="listCount">0</span></h3>
+      </div>
+      <div class="tools">
+        <label class="search"><span id="searchIcon"></span><input id="q" type="search" placeholder="Find a room…" autocomplete="off"></label>
+        <select id="sort" aria-label="Sort rooms">
+          <option value="popular">Most popular</option>
+          <option value="new">Newest</option>
+          <option value="ending">Ending soon</option>
+        </select>
+      </div>
+      <div id="rooms" class="rooms"></div>
+    </section>
+  </main>
+</div>
+
+<div id="roomView" hidden></div>
+<div id="sheetRoot"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
