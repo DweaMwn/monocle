@@ -1,6 +1,6 @@
 'use strict';
 /**
- * huddle. — live rooms that disappear when the conversation goes quiet.
+ * Monocle — live rooms that disappear when the conversation goes quiet.
  *
  * One Node process: serves /public and runs a WebSocket server on /ws.
  * All state is in memory on purpose — rooms and messages are ephemeral.
@@ -10,11 +10,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const { THEMES } = require('./autorooms');
 
 const PORT = process.env.PORT || 3000;
 
 // ---- Room rules -----------------------------------------------------------
-const INITIAL_MS = 3 * 60 * 1000; // a new room lives 3 minutes
+const INITIAL_MS = (Number(process.env.INITIAL_SECONDS) || 180) * 1000; // a new room lives 3 minutes
 const BONUS_MS = 30 * 1000; // every message adds 30 seconds
 const MAX_ROOMS = 200;
 const MAX_TITLE = 80;
@@ -29,6 +30,15 @@ const AVATAR_COLORS = 6;
 const SPEAKER_SEATS = { min: 2, max: 10, def: 6 };
 const LISTENER_SEATS = { min: 0, max: 30, def: 10 };
 const seatCount = (v, { min, max, def }) => (Number.isInteger(v) ? Math.min(max, Math.max(min, v)) : def);
+
+// Auto rooms: the server keeps AUTO_TARGET rooms from AUTO_THEME open at all times.
+// Env: AUTO_ROOMS=off disables · AUTO_THEME=<key in autorooms.js> · AUTO_TARGET=<0-12>
+const AUTO_ON = String(process.env.AUTO_ROOMS || 'on').toLowerCase() !== 'off';
+const AUTO_THEME = THEMES[process.env.AUTO_THEME || 'gta6'];
+const targetEnv = Number.parseInt(process.env.AUTO_TARGET ?? '4', 10);
+const AUTO_TARGET = Number.isNaN(targetEnv) ? 4 : Math.min(12, Math.max(0, targetEnv));
+const BOT_NAME = 'Monocle Guide';
+const RECENT_MS = 10 * 60 * 1000; // don't reuse a title that closed within 10 minutes if others exist
 
 // ---- Static files ---------------------------------------------------------
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -193,10 +203,16 @@ function joinRoom(c, room, role) {
     },
   });
   if (!already) broadcast(room, { type: 'members', members: roomMembers(room) });
+  if (room.auto && !room.opened) {
+    // First human in an auto room: give them a full clock.
+    room.opened = true;
+    room.expiresAt = Math.max(room.expiresAt, Date.now() + INITIAL_MS);
+  }
   scheduleLobby();
 }
 
 function closeRoom(room, reason) {
+  if (room.auto) recentTitles.set(room.title, Date.now());
   rooms.delete(room.id);
   for (const c of room.members) {
     c.room = null;
@@ -206,11 +222,60 @@ function closeRoom(room, reason) {
   scheduleLobby();
 }
 
+// ---- Auto rooms + the guide bot ------------------------------------------
+// Each auto room starts with ONE message from "Monocle Guide" (shown with a BOT badge): a question
+// related to the room's title. That is all the bot ever does. It is not a member of the room, takes
+// no seat, is never counted as a person, and its message doesn't extend the clock.
+const recentTitles = new Map();
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function createAutoRoom(theme, t) {
+  const room = {
+    id: uid(8),
+    title: t.title,
+    topic: theme.topic,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + INITIAL_MS,
+    maxSpeakers: SPEAKER_SEATS.def,
+    maxListeners: LISTENER_SEATS.def,
+    members: new Set(),
+    messages: [
+      { id: uid(10), from: 'bot', bot: true, name: BOT_NAME, initials: 'AI', ci: 'bot', ts: Date.now(), kind: 'text', text: t.opener },
+    ],
+    auto: true,
+    opened: false,
+  };
+  rooms.set(room.id, room);
+  scheduleLobby();
+}
+
+function maintainAutoRooms() {
+  if (!AUTO_ON || !AUTO_THEME || AUTO_TARGET === 0) return;
+  const now = Date.now();
+  for (const [title, at] of recentTitles) if (now - at > RECENT_MS) recentTitles.delete(title);
+  const open = new Set([...rooms.values()].filter((r) => r.auto).map((r) => r.title));
+  let need = AUTO_TARGET - open.size;
+  if (need <= 0 || rooms.size >= MAX_ROOMS) return;
+  let pool = AUTO_THEME.rooms.filter((t) => !open.has(t.title));
+  const fresh = pool.filter((t) => !recentTitles.has(t.title));
+  if (fresh.length >= need) pool = fresh;
+  shuffle(pool);
+  while (need-- > 0 && pool.length) createAutoRoom(AUTO_THEME, pool.pop());
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const room of [...rooms.values()]) {
     if (now >= room.expiresAt) closeRoom(room, 'quiet');
   }
+  maintainAutoRooms();
 }, 1000);
 
 function postMessage(c, body) {
@@ -356,4 +421,4 @@ setInterval(() => {
   }
 }, 30000);
 
-server.listen(PORT, () => console.log(`huddle. listening on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Monocle listening on http://localhost:${PORT}`));

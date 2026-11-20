@@ -1,4 +1,4 @@
-# huddle.
+# Monocle
 
 Live discussion rooms that disappear when the conversation goes quiet.
 
@@ -10,6 +10,28 @@ Live discussion rooms that disappear when the conversation goes quiet.
 - A new room lives **3 minutes**. Every message (text, emoji or voice note) adds **30 seconds**.
   When the clock hits zero the room closes and everything in it is erased.
 - Rooms have a chat box, emoji picker and voice notes (up to 60 s).
+
+## Auto rooms and the guide bot
+
+The server keeps a few themed rooms open at all times (default: 4 rooms from the `gta6` theme in
+`autorooms.js`, under Gaming). When one closes, a different title takes its place.
+
+- Each auto room starts with **one message from "Monocle Guide"** (shown with a BOT badge): a question related to the
+  room's title. That is all it ever does. It doesn't greet anyone and never posts again.
+- The guide is not a person: it takes no seat, is never counted in the people numbers, and its message doesn't
+  extend the room's clock, so it can't keep an empty room alive.
+- When the first human joins an auto room, its clock resets to a full 3:00.
+- Titles and opening questions live in `autorooms.js` (`title` + `opener` per room).
+
+Settings (environment variables, all optional):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AUTO_ROOMS` | `on` | Set to `off` to disable auto rooms |
+| `AUTO_THEME` | `gta6` | Which theme in `autorooms.js` to use |
+| `AUTO_TARGET` | `4` | How many auto rooms to keep open (0–12) |
+
+To add a theme, copy the `gta6` block in `autorooms.js`, give it a new key, and set `AUTO_THEME` to it.
 
 ## Run locally
 
