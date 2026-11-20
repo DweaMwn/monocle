@@ -122,7 +122,8 @@ function onMessage(m) {
       if (!state.room) break;
       state.room.members = m.members;
       { const mine = m.members.find((x) => x.id === state.me);
-        if (mine && mine.role !== state.role) { state.role = mine.role; renderComposer(); } }
+        if (mine && mine.role !== state.role) { state.role = mine.role; renderComposer(); }
+        else if (state.role !== 'speaker') renderComposer(); } // refresh "seats full" state for listeners
       renderPeople();
       break;
     case 'message':
@@ -138,7 +139,12 @@ function onMessage(m) {
       else if (state.pendingJoin === m.roomId) showGate(m.roomId);
       break;
     case 'join_failed':
-      if (state.room && state.room.id === m.roomId) showClosed();
+      if (m.reason === 'full') {
+        toast(m.role === 'speaker' ? 'Speaker seats are full in that room.' : 'Listener seats are full in that room.');
+        if (state.room && state.room.id === m.roomId) { // lost our seat while reconnecting
+          history.replaceState(null, '', '#/'); route();
+        } else if (state.pendingJoin) showGate(m.roomId);
+      } else if (state.room && state.room.id === m.roomId) showClosed();
       else { toast('That room has already closed.'); if (location.hash) history.replaceState(null, '', '#/'); state.pendingJoin = null; showHome(); }
       break;
     case 'error':
@@ -166,6 +172,12 @@ function visibleRooms() {
   return list.sort(by);
 }
 
+function seatButtons(r, attr = 'data-act', listenVal = 'listen', speakVal = 'speak') {
+  const noL = r.listeners >= r.maxListeners, noS = r.speakers >= r.maxSpeakers;
+  return `<button class="btn ghost" ${attr}="${listenVal}" ${noL ? 'disabled' : ''}>${ic('headphones')}${noL ? (r.maxListeners === 0 ? 'No listeners' : 'Listeners full') : 'Listen in'}</button>
+      <button class="btn soft" ${attr}="${speakVal}" ${noS ? 'disabled' : ''}>${ic('mic')}${noS ? 'Speakers full' : 'Join as speaker'}</button>`;
+}
+
 function cardHTML(r) {
   const t = topicOf(r.topic);
   const left = r.expiresAt - now();
@@ -178,11 +190,10 @@ function cardHTML(r) {
     <h4>${esc(r.title)}</h4>
     <div class="card-meta">
       <div class="avs">${r.avatars.map((a) => av(a.initials, a.ci)).join('')}</div>
-      <b>${r.count} ${r.count === 1 ? 'person' : 'people'}</b><span>${r.speakers} speaking</span>
+      <div class="seats"><span>${ic('mic')}<b>${r.speakers}/${r.maxSpeakers}</b> speaking</span><span>${ic('headphones')}<b>${r.listeners}/${r.maxListeners}</b> listening</span></div>
     </div>
     <div class="card-actions">
-      <button class="btn ghost" data-act="listen">${ic('headphones')}Listen in</button>
-      <button class="btn soft" data-act="speak">${ic('mic')}Join as speaker</button>
+      ${seatButtons(r)}
     </div>
   </article>`;
 }
@@ -264,6 +275,12 @@ function openCreate(presetTopic) {
           <input id="rt" maxlength="80" placeholder="Give your room a title…" autocomplete="off"></div>
         <div class="field"><label for="rp">Topic <small>(required)</small></label>
           <select id="rp"><option value="">Choose a topic</option>${TOPICS.map((t) => `<option value="${t.id}" ${t.id === presetTopic ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
+        <div class="field-row">
+          <div class="field"><label for="rs">Speaker seats</label>
+            <select id="rs">${[2, 3, 4, 5, 6, 8, 10].map((n) => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+          <div class="field"><label for="rl">Listener seats</label>
+            <select id="rl">${[0, 5, 10, 20, 30].map((n) => `<option value="${n}" ${n === 10 ? 'selected' : ''}>${n === 0 ? 'None' : n}</option>`).join('')}</select></div>
+        </div>
         <div class="note">${ic('timer')}<span>Every message adds 30 seconds. After 3 minutes of silence, the room closes and its messages disappear.</span></div>
         <button id="rgo" class="btn primary block" type="submit" disabled>${ic('plus')}Create room</button>
       </form>`);
@@ -273,7 +290,8 @@ function openCreate(presetTopic) {
     $('#createForm', root).onsubmit = (e) => {
       e.preventDefault(); check();
       if (go.disabled) return;
-      if (wsSend({ type: 'create', title: title.value, topic: topic.value, name: state.name })) closeSheet();
+      if (wsSend({ type: 'create', title: title.value, topic: topic.value, name: state.name,
+        maxSpeakers: +$('#rs', root).value, maxListeners: +$('#rl', root).value })) closeSheet();
     };
   });
 }
@@ -320,10 +338,8 @@ function showGate(id) {
   const t = topicOf(r.topic);
   view.innerHTML = `<div class="rv"><div class="closed">
     <span class="chip" style="background:${t.bg}">${t.label}</span>
-    <h2>${esc(r.title)}</h2><p>${r.count} ${r.count === 1 ? 'person' : 'people'} in here · <b data-x>${fmt(r.expiresAt - now())}</b> left</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-      <button class="btn ghost" data-g="listener">${ic('headphones')}Listen in</button>
-      <button class="btn primary" data-g="speaker">${ic('mic')}Join as speaker</button></div>
+    <h2>${esc(r.title)}</h2><p>${r.speakers}/${r.maxSpeakers} speaking · ${r.listeners}/${r.maxListeners} listening · <b data-x>${fmt(r.expiresAt - now())}</b> left</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${seatButtons(r, 'data-g', 'listener', 'speaker')}</div>
     <button class="link" id="gateHome">Back to rooms</button></div></div>`;
   $('#gateHome').onclick = () => { history.replaceState(null, '', '#/'); route(); };
   view.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () =>
@@ -369,14 +385,16 @@ function renderPeople() {
   const ms = state.room.members;
   const sp = ms.filter((m) => m.role === 'speaker'), li = ms.filter((m) => m.role !== 'speaker');
   box.innerHTML = sp.map((m) => `<div class="spk" title="${esc(m.name)}">${av(m.initials, m.ci)}${m.id === state.me ? '<span class="you">you</span>' : ''}</div>`).join('') +
-    `<div class="listening">${ic('headphones')}${li.length} listening</div>`;
+    `<div class="listening">${ic('mic')}${sp.length}/${state.room.maxSpeakers}</div>` +
+    `<div class="listening nb">${ic('headphones')}${li.length}/${state.room.maxListeners} listening</div>`;
 }
 
 function renderComposer() {
   const box = $('#rvComposer'); if (!box) return;
   if (state.role !== 'speaker') {
-    box.innerHTML = `<div class="listen-bar"><span>You’re listening. Join in to send messages.</span>
-      <button class="btn primary" id="becomeSpeaker">${ic('mic')}Speak</button></div>`;
+    const full = state.room.members.filter((x) => x.role === 'speaker').length >= state.room.maxSpeakers;
+    box.innerHTML = `<div class="listen-bar"><span>${full ? 'Speaker seats are full. You’ll be able to speak when a seat opens.' : 'You’re listening. Join in to send messages.'}</span>
+      <button class="btn primary" id="becomeSpeaker" ${full ? 'disabled' : ''}>${ic('mic')}Speak</button></div>`;
     $('#becomeSpeaker').onclick = () => wsSend({ type: 'role', role: 'speaker' });
     return;
   }

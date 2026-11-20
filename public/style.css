@@ -48,6 +48,12 @@ svg.ic.fill { fill: currentColor; stroke: none; }
 .btn.soft { background: var(--soft); color: var(--brand-d); }
 .btn.soft:hover { background: #e6dcf6; }
 .btn.block { width: 100%; }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.seats { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.seats span { display: inline-flex; align-items: center; gap: 4px; }
+.seats svg { width: 14px; height: 14px; }
+.card-meta { flex-wrap: wrap; }
 .link { background: none; border: 0; color: var(--brand); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; }
 .icon-btn {
   width: 42px; height: 42px; border-radius: 50%; border: 0; background: transparent;

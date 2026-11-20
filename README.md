@@ -5,6 +5,8 @@ Live discussion rooms that disappear when the conversation goes quiet.
 - Pick a topic (Football, Music, Anime, Politics, Gaming, Everything else) and see its live rooms.
 - Join a room as a **listener** or a **speaker**. Listeners can read; tap *Speak* to join in.
 - Anyone can create a room. A topic is required.
+- Rooms have **separate seat limits** for speakers (2–10, default 6) and listeners (0–30, default 10),
+  chosen by the creator. When a seat is full its join button is disabled; it opens again when someone leaves.
 - A new room lives **3 minutes**. Every message (text, emoji or voice note) adds **30 seconds**.
   When the clock hits zero the room closes and everything in it is erased.
 - Rooms have a chat box, emoji picker and voice notes (up to 60 s).

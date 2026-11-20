@@ -25,6 +25,10 @@ const MAX_VOICE_B64 = 1_200_000; // ~900 KB of audio
 const MAX_HISTORY = 150;
 const TOPICS = new Set(['football', 'music', 'anime', 'politics', 'gaming', 'everything']);
 const AVATAR_COLORS = 6;
+// Seat limits (chosen by the room's creator within these bounds)
+const SPEAKER_SEATS = { min: 2, max: 10, def: 6 };
+const LISTENER_SEATS = { min: 0, max: 30, def: 10 };
+const seatCount = (v, { min, max, def }) => (Number.isInteger(v) ? Math.min(max, Math.max(min, v)) : def);
 
 // ---- Static files ---------------------------------------------------------
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -122,6 +126,9 @@ function lobbyView(room) {
     expiresAt: room.expiresAt,
     count: members.length,
     speakers: speakers.length,
+    listeners: listeners.length,
+    maxSpeakers: room.maxSpeakers,
+    maxListeners: room.maxListeners,
     avatars: [...speakers, ...listeners].slice(0, 3).map((m) => ({ initials: m.initials, ci: m.ci })),
   };
 }
@@ -155,6 +162,15 @@ function leaveRoom(c) {
   scheduleLobby();
 }
 
+// Is there a free seat for `c` taking `role` in `room`? (Keeping your own role is always fine.)
+function hasSeat(room, role, c) {
+  if (room.members.has(c) && c.role === role) return true;
+  let s = 0;
+  let l = 0;
+  for (const m of room.members) (m.role === 'speaker' ? s++ : l++);
+  return role === 'speaker' ? s < room.maxSpeakers : l < room.maxListeners;
+}
+
 function joinRoom(c, room, role) {
   if (c.room && c.room !== room) leaveRoom(c);
   c.role = role === 'speaker' ? 'speaker' : 'listener';
@@ -170,6 +186,8 @@ function joinRoom(c, room, role) {
       title: room.title,
       topic: room.topic,
       expiresAt: room.expiresAt,
+      maxSpeakers: room.maxSpeakers,
+      maxListeners: room.maxListeners,
       members: roomMembers(room),
       messages: room.messages,
     },
@@ -244,6 +262,8 @@ function handle(c, m) {
         topic: m.topic,
         createdAt: Date.now(),
         expiresAt: Date.now() + INITIAL_MS,
+        maxSpeakers: seatCount(m.maxSpeakers, SPEAKER_SEATS),
+        maxListeners: seatCount(m.maxListeners, LISTENER_SEATS),
         members: new Set(),
         messages: [],
       };
@@ -254,13 +274,19 @@ function handle(c, m) {
     case 'join': {
       const room = rooms.get(String(m.roomId));
       if (!room) return send(c, { type: 'join_failed', roomId: String(m.roomId) });
+      const role = m.role === 'speaker' ? 'speaker' : 'listener';
+      if (!hasSeat(room, role, c)) return send(c, { type: 'join_failed', roomId: room.id, reason: 'full', role });
       setIdentity(c, m.name);
-      joinRoom(c, room, m.role);
+      joinRoom(c, room, role);
       break;
     }
     case 'role': {
       if (!c.room) return;
-      c.role = m.role === 'speaker' ? 'speaker' : 'listener';
+      const role = m.role === 'speaker' ? 'speaker' : 'listener';
+      if (!hasSeat(c.room, role, c)) {
+        return send(c, { type: 'error', message: role === 'speaker' ? 'Speaker seats are full right now.' : 'Listener seats are full right now.' });
+      }
+      c.role = role;
       broadcast(c.room, { type: 'members', members: roomMembers(c.room) });
       scheduleLobby();
       break;
